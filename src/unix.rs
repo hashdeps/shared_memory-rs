@@ -84,7 +84,11 @@ pub fn check_available_space(map_size: usize) -> Result<(), ShmemError> {
 }
 
 /// Creates a mapping specified by the uid and size
-pub fn create_mapping(unique_id: &str, map_size: usize, droppable: bool) -> Result<MapData, ShmemError> {
+pub fn create_mapping(
+    unique_id: &str,
+    map_size: usize,
+    droppable: bool,
+) -> Result<MapData, ShmemError> {
     //Create shared memory file descriptor
     debug!("Creating persistent mapping at {}", unique_id);
     let shmem_fd = match shm_open(
@@ -186,7 +190,7 @@ pub fn open_mapping(unique_id: &str, droppable: bool) -> Result<MapData, ShmemEr
     //Get mmap size
     new_map.map_size = match fstat(new_map.map_fd) {
         Ok(v) => v.st_size as usize,
-        Err(e) => return Err(ShmemError::MapOpenFailed(e as u32)), 
+        Err(e) => return Err(ShmemError::MapOpenFailed(e as u32)),
     };
 
     //Map memory into our address space
@@ -194,11 +198,11 @@ pub fn open_mapping(unique_id: &str, droppable: bool) -> Result<MapData, ShmemEr
     new_map.map_ptr = match unsafe {
         mmap(
             null_mut(),                                   //Desired addr
-            new_map.map_size,                           //size of mapping
+            new_map.map_size,                             //size of mapping
             ProtFlags::PROT_READ | ProtFlags::PROT_WRITE, //Permissions on pages
-            MapFlags::MAP_SHARED,                        //What kind of mapping
-            new_map.map_fd,                                    //fd
-            0,                                          //Offset into fd
+            MapFlags::MAP_SHARED,                         //What kind of mapping
+            new_map.map_fd,                               //fd
+            0,                                            //Offset into fd
         )
     } {
         Ok(v) => {
@@ -240,7 +244,7 @@ pub fn resize_segment(map_data: &mut MapData, new_size: usize) -> Result<(), Shm
     //Enlarge the memory descriptor file size to the requested map size
     match ftruncate(map_data.map_fd, new_size as _) {
         Ok(_) => {}
-        Err(e) => return Err(ShmemError::UnknownOsError(e as u32))
+        Err(e) => return Err(ShmemError::UnknownOsError(e as u32)),
     };
 
     Ok(())
@@ -267,11 +271,11 @@ pub fn reload_mapping(map_data: &mut MapData) -> Result<(), ShmemError> {
     // Remap into our address space
     map_data.map_ptr = match unsafe {
         mmap(
-            desired_address,                                //Desired addr
+            desired_address,                              //Desired addr
             map_data.map_size,                            //size of mapping
-            ProtFlags::PROT_READ | ProtFlags::PROT_WRITE,   //Permissions on pages
-            MapFlags::MAP_SHARED,                          //What kind of mapping
-            map_data.map_fd,                                     //file descriptor
+            ProtFlags::PROT_READ | ProtFlags::PROT_WRITE, //Permissions on pages
+            MapFlags::MAP_SHARED,                         //What kind of mapping
+            map_data.map_fd,                              //file descriptor
             0,                                            //Offset inside "file"
         )
     } {

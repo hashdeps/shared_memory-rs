@@ -1,4 +1,4 @@
-use ::winapi::{
+use winapi::{
     shared::{ntdef::NULL, winerror::ERROR_ALREADY_EXISTS},
     um::{
         errhandlingapi::GetLastError,

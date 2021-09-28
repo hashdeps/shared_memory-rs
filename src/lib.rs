@@ -133,7 +133,9 @@ impl ShmemConf {
                     };
                 }
             }
-            Some(ref specific_id) => os_impl::create_mapping(specific_id, self.size, self.droppable)?,
+            Some(ref specific_id) => {
+                os_impl::create_mapping(specific_id, self.size, self.droppable)?
+            }
         };
         debug!("Created shared memory mapping '{}'", mapping.unique_id);
 
@@ -272,7 +274,7 @@ impl Shmem {
     pub fn usize_ptr(&self) -> usize {
         self.mapping.map_ptr
     }
-    
+
     /// Returns mapping as a byte slice
     /// # Safety
     /// This function is unsafe because it is impossible to ensure the range of bytes is immutable
