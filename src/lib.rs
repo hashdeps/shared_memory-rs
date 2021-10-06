@@ -69,6 +69,7 @@ impl Drop for ShmemConf {
 }
 #[allow(clippy::new_without_default)]
 impl ShmemConf {
+    // TODO Make droppable false by default and create a new method to set it, rather than creating a breaking change to the API 
     /// Create a new default shmem config
     pub fn new(droppable: bool) -> Self {
         if !droppable {
