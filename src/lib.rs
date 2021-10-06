@@ -26,6 +26,7 @@ use std::fs::{File, OpenOptions};
 use std::io::{ErrorKind, Read, Write};
 
 use std::fs::remove_file;
+use std::os::unix::prelude::RawFd;
 use std::path::{Path, PathBuf};
 
 use ::cfg_if::*;
@@ -48,6 +49,7 @@ cfg_if! {
 
 /// Struct used to configure different parameters before creating a shared memory mapping
 pub struct ShmemConf {
+    droppable: bool,
     owner: bool,
     os_id: Option<String>,
     overwrite_flink: bool,
@@ -67,9 +69,14 @@ impl Drop for ShmemConf {
 }
 #[allow(clippy::new_without_default)]
 impl ShmemConf {
+    // TODO Make droppable true by default and create a new method to set it, rather than creating a breaking change to the API 
     /// Create a new default shmem config
-    pub fn new() -> Self {
+    pub fn new(droppable: bool) -> Self {
+        if !droppable {
+            warn!("Created a non-droppable shared memory batch")
+        }
         Self {
+            droppable,
             owner: false,
             os_id: None,
             overwrite_flink: false,
@@ -93,7 +100,7 @@ impl ShmemConf {
 
     /// Create the shared memory mapping with a file link
     ///
-    /// This creates a file on disk that contains the unique os_id for the mapping.
+    /// This creates a file on disk that contains the unique `os_id` for the mapping.
     /// This can be useful when application want to rely on filesystems to share mappings
     pub fn flink<S: AsRef<Path>>(mut self, path: S) -> Self {
         self.flink_path = Some(PathBuf::from(path.as_ref()));
@@ -118,7 +125,7 @@ impl ShmemConf {
                 // Generate random ID until one works
                 loop {
                     let cur_id = format!("/shmem_{:X}", rand::random::<u64>());
-                    match os_impl::create_mapping(&cur_id, self.size) {
+                    match os_impl::create_mapping(&cur_id, self.size, self.droppable) {
                         Err(ShmemError::MappingIdExists) => continue,
                         Ok(m) => break m,
                         Err(e) => {
@@ -127,7 +134,9 @@ impl ShmemConf {
                     };
                 }
             }
-            Some(ref specific_id) => os_impl::create_mapping(specific_id, self.size)?,
+            Some(ref specific_id) => {
+                os_impl::create_mapping(specific_id, self.size, self.droppable)?
+            }
         };
         debug!("Created shared memory mapping '{}'", mapping.unique_id);
 
@@ -203,7 +212,7 @@ impl ShmemConf {
                 flink_uid.as_str()
             };
 
-            match os_impl::open_mapping(unique_id, self.size) {
+            match os_impl::open_mapping(unique_id, self.droppable) {
                 Ok(m) => {
                     self.size = m.map_size;
                     self.owner = false;
@@ -260,8 +269,13 @@ impl Shmem {
     }
     /// Returns a raw pointer to the mapping
     pub fn as_ptr(&self) -> *mut u8 {
+        self.mapping.map_ptr as *mut u8
+    }
+
+    pub fn usize_ptr(&self) -> usize {
         self.mapping.map_ptr
     }
+
     /// Returns mapping as a byte slice
     /// # Safety
     /// This function is unsafe because it is impossible to ensure the range of bytes is immutable
@@ -273,5 +287,25 @@ impl Shmem {
     /// This function is unsafe because it is impossible to ensure the returned mutable refence is unique/exclusive
     pub unsafe fn as_slice_mut(&mut self) -> &mut [u8] {
         std::slice::from_raw_parts_mut(self.as_ptr(), self.len())
+    }
+
+    /// Resize the shared memory segment
+    pub fn resize(&mut self, new_size: usize) -> Result<(), ShmemError> {
+        os_impl::resize_segment(&mut self.mapping, new_size)?;
+        self.reload()
+    }
+
+    /// Reload the pointer and size from mapping file descriptor
+    pub fn reload(&mut self) -> Result<(), ShmemError> {
+        os_impl::reload_mapping(&mut self.mapping)
+    }
+
+    /// Get the raw file descriptor
+    pub fn raw_fd(&self) -> RawFd {
+        self.mapping.map_fd
+    }
+
+    pub fn unmap(mut self) {
+        os_impl::close_mapping(&mut self.mapping);
     }
 }
