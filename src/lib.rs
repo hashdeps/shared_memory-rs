@@ -26,6 +26,7 @@ use std::fs::{File, OpenOptions};
 use std::io::{ErrorKind, Read, Write};
 
 use std::fs::remove_file;
+#[cfg(unix)]
 use std::os::unix::prelude::RawFd;
 use std::path::{Path, PathBuf};
 
@@ -212,7 +213,11 @@ impl ShmemConf {
                 flink_uid.as_str()
             };
 
-            match os_impl::open_mapping(unique_id, self.droppable) {
+            #[cfg(unix)]
+                let mapping = os_impl::open_mapping(unique_id, self.droppable);
+            #[cfg(windows)]
+                let mapping = os_impl::open_mapping(unique_id, self.size);
+            match mapping {
                 Ok(m) => {
                     self.size = m.map_size;
                     self.owner = false;
@@ -269,11 +274,11 @@ impl Shmem {
     }
     /// Returns a raw pointer to the mapping
     pub fn as_ptr(&self) -> *mut u8 {
-        self.mapping.map_ptr as *mut u8
+        self.mapping.map_ptr
     }
 
     pub fn usize_ptr(&self) -> usize {
-        self.mapping.map_ptr
+        self.mapping.map_ptr as usize
     }
 
     /// Returns mapping as a byte slice
@@ -290,21 +295,25 @@ impl Shmem {
     }
 
     /// Resize the shared memory segment
+    #[cfg(unix)]
     pub fn resize(&mut self, new_size: usize) -> Result<(), ShmemError> {
         os_impl::resize_segment(&mut self.mapping, new_size)?;
         self.reload()
     }
 
+    #[cfg(unix)]
     /// Reload the pointer and size from mapping file descriptor
     pub fn reload(&mut self) -> Result<(), ShmemError> {
         os_impl::reload_mapping(&mut self.mapping)
     }
 
+    #[cfg(unix)]
     /// Get the raw file descriptor
     pub fn raw_fd(&self) -> RawFd {
         self.mapping.map_fd
     }
 
+    #[cfg(unix)]
     pub fn unmap(mut self) {
         os_impl::close_mapping(&mut self.mapping);
     }
