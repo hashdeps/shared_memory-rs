@@ -214,9 +214,9 @@ impl ShmemConf {
             };
 
             #[cfg(unix)]
-                let mapping = os_impl::open_mapping(unique_id, self.droppable);
+            let mapping = os_impl::open_mapping(unique_id, self.droppable);
             #[cfg(windows)]
-                let mapping = os_impl::open_mapping(unique_id, self.size);
+            let mapping = os_impl::open_mapping(unique_id, self.size);
             match mapping {
                 Ok(m) => {
                     self.size = m.map_size;

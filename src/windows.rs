@@ -143,7 +143,11 @@ fn get_tmp_dir() -> Result<PathBuf, ShmemError> {
 }
 
 //Creates a mapping specified by the uid and size
-pub fn create_mapping(unique_id: &str, map_size: usize, _droppable: bool) -> Result<MapData, ShmemError> {
+pub fn create_mapping(
+    unique_id: &str,
+    map_size: usize,
+    _droppable: bool,
+) -> Result<MapData, ShmemError> {
     // Create file to back the shared memory
     let mut file_path = get_tmp_dir()?;
     file_path.push(unique_id.trim_start_matches('/'));
