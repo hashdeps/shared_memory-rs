@@ -2,9 +2,6 @@ use ::nix::fcntl::OFlag;
 use ::nix::sys::mman::{mmap, munmap, shm_open, shm_unlink, MapFlags, ProtFlags};
 use ::nix::sys::stat::{fstat, Mode};
 use ::nix::unistd::{close, ftruncate};
-use sysinfo::{System, SystemExt};
-
-const MEMORY_THRESHOLD: f32 = 0.2;
 
 #[allow(unused_imports)]
 use crate::log::*;
@@ -12,6 +9,7 @@ use crate::ShmemError;
 
 use std::os::unix::io::RawFd;
 use std::ptr::null_mut;
+use nix::errno::Errno;
 
 pub struct MapData {
     droppable: bool,
@@ -70,19 +68,6 @@ impl MapData {
     }
 }
 
-/// Checks there's available space for the memory allocation, allowing some threshold to avoid using 100%
-pub fn check_available_space(map_size: usize) -> Result<(), ShmemError> {
-    let sys_stats = System::new_all();
-    let free_mem_in_kb = sys_stats
-        .available_memory()
-        .saturating_sub((MEMORY_THRESHOLD * sys_stats.total_memory() as f32) as u64);
-
-    if free_mem_in_kb * 1024 < map_size as u64 {
-        return Err(ShmemError::DevShmOutOfMemory);
-    }
-    Ok(())
-}
-
 /// Creates a mapping specified by the uid and size
 pub fn create_mapping(
     unique_id: &str,
@@ -124,6 +109,7 @@ pub fn create_mapping(
     trace!("ftruncate({}, {})", new_map.map_fd, new_map.map_size);
     match ftruncate(new_map.map_fd, new_map.map_size as _) {
         Ok(_) => {}
+        Err(Errno::ENOMEM) => return Err(ShmemError::DevShmOutOfMemory),
         Err(e) => return Err(ShmemError::UnknownOsError(e as u32)),
     };
 
@@ -236,18 +222,12 @@ pub fn close_mapping(map_data: &mut MapData) {
 }
 
 pub fn resize_segment(map_data: &mut MapData, new_size: usize) -> Result<(), ShmemError> {
-    if new_size > map_data.map_size {
-        let size_increase = new_size - map_data.map_size;
-        check_available_space(size_increase)?;
-    }
-
     //Enlarge the memory descriptor file size to the requested map size
     match ftruncate(map_data.map_fd, new_size as _) {
-        Ok(_) => {}
-        Err(e) => return Err(ShmemError::UnknownOsError(e as u32)),
-    };
-
-    Ok(())
+        Ok(_) => Ok(()),
+        Err(Errno::ENOMEM) => Err(ShmemError::DevShmOutOfMemory),
+        Err(e) => Err(ShmemError::UnknownOsError(e as u32)),
+    }
 }
 
 pub fn reload_mapping(map_data: &mut MapData) -> Result<(), ShmemError> {
