@@ -7,9 +7,9 @@ use ::nix::unistd::{close, ftruncate};
 use crate::log::*;
 use crate::ShmemError;
 
+use nix::errno::Errno;
 use std::os::unix::io::RawFd;
 use std::ptr::null_mut;
-use nix::errno::Errno;
 
 pub struct MapData {
     droppable: bool,
