@@ -27,6 +27,9 @@ pub struct MapData {
     pub map_ptr: *mut u8,
 }
 
+unsafe impl Send for MapData {}
+unsafe impl Sync for MapData {}
+
 /// Shared memory teardown for linux
 impl Drop for MapData {
     ///Takes care of properly closing the `SharedMem` (`munmap()`, `shmem_unlink()`, `close()`)
