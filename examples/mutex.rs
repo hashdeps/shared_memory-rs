@@ -1,5 +1,7 @@
-use std::sync::atomic::{AtomicU8, Ordering};
-use std::thread;
+use std::{
+    sync::atomic::{AtomicU8, Ordering},
+    thread,
+};
 
 use clap::{App, Arg};
 use log::*;
@@ -60,7 +62,6 @@ fn increment_value(shmem_flink: &str, thread_num: usize) {
 
     let mut raw_ptr = shmem.as_ptr();
     let is_init: &mut AtomicU8;
-    let mutex: Box<dyn LockImpl>;
 
     unsafe {
         is_init = &mut *(raw_ptr as *mut u8 as *mut AtomicU8);
@@ -68,7 +69,7 @@ fn increment_value(shmem_flink: &str, thread_num: usize) {
     };
 
     // Initialize or wait for initialized mutex
-    if shmem.is_owner() {
+    let mutex: Box<dyn LockImpl> = if shmem.is_owner() {
         is_init.store(0, Ordering::Relaxed);
         // Initialize the mutex
         let (lock, _bytes_used) = unsafe {
@@ -79,7 +80,7 @@ fn increment_value(shmem_flink: &str, thread_num: usize) {
             .unwrap()
         };
         is_init.store(1, Ordering::Relaxed);
-        mutex = lock;
+        lock
     } else {
         // wait until mutex is initialized
         while is_init.load(Ordering::Relaxed) != 1 {}
@@ -91,8 +92,8 @@ fn increment_value(shmem_flink: &str, thread_num: usize) {
             )
             .unwrap()
         };
-        mutex = lock;
-    }
+        lock
+    };
 
     // Loop until mutex data reaches 10
     loop {

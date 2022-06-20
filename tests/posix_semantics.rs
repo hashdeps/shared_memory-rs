@@ -26,7 +26,11 @@ fn posix_behavior() {
                 let shmem = ShmemConf::new(true).size(4096).create().unwrap();
                 let os_id = String::from(shmem.get_os_id());
                 // Creating two `Shmem`s with the same `os_id` should fail
-                assert!(ShmemConf::new(true).size(4096).os_id(&os_id).create().is_err());
+                assert!(ShmemConf::new(true)
+                    .size(4096)
+                    .os_id(&os_id)
+                    .create()
+                    .is_err());
                 tx_b.send(os_id.clone()).unwrap();
                 tx_c.send(os_id.clone()).unwrap();
                 // Wait for threads B and C to confirm they have created their instances.
